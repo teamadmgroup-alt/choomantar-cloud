@@ -11,13 +11,17 @@ def send_email(to_email: str, subject: str, html_body: str, text_body: str) -> b
         current_app.logger.info("Email suppressed (testing): %s", subject)
         return True
 
-    api_key = cfg.get("SENDGRID_API_KEY")
+    api_key = cfg.get("SENDGRID_API_KEY", "").strip()
+    current_app.logger.info("SendGrid check: API key length=%s", len(api_key))
+    
     if not api_key:
-        current_app.logger.error("SendGrid API key not configured; cannot send '%s'.", subject)
+        current_app.logger.error("SendGrid API key not configured (empty); cannot send '%s'.", subject)
         return False
 
     from_email = cfg.get("SMTP_FROM_EMAIL", "noreply@example.com")
     app_name = cfg.get("APP_NAME", "App")
+    
+    current_app.logger.info("SendGrid: Sending to %s from %s", to_email, from_email)
 
     try:
         sg = SendGridAPIClient(api_key)
@@ -28,14 +32,14 @@ def send_email(to_email: str, subject: str, html_body: str, text_body: str) -> b
             plain_text_content=text_body,
             html_content=html_body,
         )
-        current_app.logger.info("Sending email to %s (subject: %s)", to_email, subject)
+        current_app.logger.info("SendGrid: Message created, sending...")
         response = sg.send(message)
         current_app.logger.info(
-            "Email sent successfully to %s (status: %s)", to_email, response.status_code
+            "SendGrid: Email sent successfully to %s (status: %s)", to_email, response.status_code
         )
         return True
     except Exception as exc:
-        current_app.logger.error("Email delivery failed to %s: %s", to_email, type(exc).__name__)
+        current_app.logger.error("SendGrid error sending to %s: %s - %s", to_email, type(exc).__name__, str(exc))
         return False
 
 
