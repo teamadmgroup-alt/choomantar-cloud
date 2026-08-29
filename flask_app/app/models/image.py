@@ -1,4 +1,5 @@
 import secrets
+from urllib.parse import urlparse
 
 from flask import current_app, url_for
 
@@ -52,6 +53,12 @@ class Image(db.Model):
     # --- helpers ----------------------------------------------------------
     @property
     def public_url(self) -> str:
+        base = (current_app.config.get("PUBLIC_IMAGE_BASE_URL") or "").rstrip("/")
+        app_base = (current_app.config.get("APP_BASE_URL") or "").rstrip("/")
+        if base:
+            host = (urlparse(app_base).hostname or "").lower() if app_base else ""
+            if host and host not in {"localhost", "127.0.0.1", "::1"}:
+                return f"{base}/i/{self.public_slug}"
         return self.secure_url or self.storage_url
 
     @property

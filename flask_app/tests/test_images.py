@@ -40,6 +40,15 @@ def test_public_url_uses_cloudinary_asset_url(app):
         assert image.public_url == "https://cdn.test/upload/sample.png"
 
 
+def test_public_url_uses_configured_image_domain_in_production(app):
+    image = Image(public_slug="sample123", secure_url="https://cdn.test/upload/sample.png")
+    image.storage_url = "http://cdn.test/upload/sample.png"
+    app.config["PUBLIC_IMAGE_BASE_URL"] = "https://img.example.com"
+    app.config["APP_BASE_URL"] = "https://app.example.com"
+    with app.app_context():
+        assert image.public_url == "https://img.example.com/i/sample123"
+
+
 def test_category_can_be_created_and_assigned_to_upload(client, app, fake_storage):
     make_user()
     login(client)
