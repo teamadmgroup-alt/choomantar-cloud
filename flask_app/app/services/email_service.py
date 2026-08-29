@@ -1,9 +1,8 @@
-"""Plain SMTP delivery. No third-party branding, no secrets logged."""
-
-import smtplib
-from email.message import EmailMessage
+"""Email delivery via SendGrid API (works on Render free tier)."""
 
 from flask import current_app, render_template
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail, Email, Content, HtmlContent
 
 
 def send_email(to_email: str, subject: str, html_body: str, text_body: str) -> bool:
@@ -12,48 +11,30 @@ def send_email(to_email: str, subject: str, html_body: str, text_body: str) -> b
         current_app.logger.info("Email suppressed (testing): %s", subject)
         return True
 
-    host = cfg.get("SMTP_HOST")
-    if not host:
-        current_app.logger.error("SMTP is not configured; cannot send '%s'.", subject)
-        return False
-    
-    username = cfg.get("SMTP_USERNAME")
-    password = cfg.get("SMTP_PASSWORD")
-    if not username or not password:
-        current_app.logger.error("SMTP credentials missing; cannot send '%s'.", subject)
+    api_key = cfg.get("SENDGRID_API_KEY")
+    if not api_key:
+        current_app.logger.error("SendGrid API key not configured; cannot send '%s'.", subject)
         return False
 
-    message = EmailMessage()
-    message["Subject"] = subject
-    message["From"] = f"{cfg['APP_NAME']} <{cfg['SMTP_FROM_EMAIL']}>"
-    message["To"] = to_email
-    message.set_content(text_body)
-    message.add_alternative(html_body, subtype="html")
+    from_email = cfg.get("SMTP_FROM_EMAIL", "noreply@example.com")
+    app_name = cfg.get("APP_NAME", "App")
 
     try:
-        timeout = int(cfg.get("SMTP_TIMEOUT", 15))
-        if cfg.get("SMTP_USE_SSL"):
-            server = smtplib.SMTP_SSL(host, int(cfg["SMTP_PORT"]), timeout=timeout)
-        else:
-            server = smtplib.SMTP(host, int(cfg["SMTP_PORT"]), timeout=timeout)
-        with server:
-            server.ehlo()
-            if cfg.get("SMTP_USE_TLS") and not cfg.get("SMTP_USE_SSL"):
-                server.starttls()
-                server.ehlo()
-            if username:
-                server.login(username, password)
-            current_app.logger.info("Sending email to %s (subject: %s)", to_email, subject)
-            server.send_message(message)
-        current_app.logger.info("Email sent successfully to %s", to_email)
+        sg = SendGridAPIClient(api_key)
+        message = Mail(
+            from_email=Email(from_email, app_name),
+            to_emails=to_email,
+            subject=subject,
+            plain_text_content=text_body,
+            html_content=html_body,
+        )
+        current_app.logger.info("Sending email to %s (subject: %s)", to_email, subject)
+        response = sg.send(message)
+        current_app.logger.info(
+            "Email sent successfully to %s (status: %s)", to_email, response.status_code
+        )
         return True
-    except smtplib.SMTPAuthenticationError as exc:
-        current_app.logger.error("SMTP authentication failed: check SMTP_USERNAME and SMTP_PASSWORD")
-        return False
-    except smtplib.SMTPException as exc:
-        current_app.logger.error("SMTP error while sending to %s: %s", to_email, type(exc).__name__)
-        return False
-    except Exception as exc:  # noqa: BLE001 - never leak credentials
+    except Exception as exc:
         current_app.logger.error("Email delivery failed to %s: %s", to_email, type(exc).__name__)
         return False
 

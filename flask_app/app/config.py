@@ -73,6 +73,7 @@ class BaseConfig:
     )
 
     # --- mail -------------------------------------------------------------
+    SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY", "")
     SMTP_HOST = os.environ.get("SMTP_HOST", "")
     SMTP_PORT = _int("SMTP_PORT", 587)
     SMTP_USERNAME = os.environ.get("SMTP_USERNAME", "")
