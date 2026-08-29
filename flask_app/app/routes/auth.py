@@ -191,8 +191,13 @@ def resend_verification():
     form = ResendVerificationForm()
     if form.validate_on_submit():
         token = issue_token(current_user)
-        send_verification_email(current_user, token)
-        flash("Verification email sent. Please check your inbox.", "success")
+        if not send_verification_email(current_user, token):
+            flash(
+                "Verification email could not be sent. Please contact support or try again later.",
+                "warning",
+            )
+        else:
+            flash("Verification email sent. Please check your inbox.", "success")
     return redirect(url_for("auth.verify_notice"))
 
 

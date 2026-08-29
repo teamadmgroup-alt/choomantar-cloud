@@ -16,6 +16,12 @@ def send_email(to_email: str, subject: str, html_body: str, text_body: str) -> b
     if not host:
         current_app.logger.error("SMTP is not configured; cannot send '%s'.", subject)
         return False
+    
+    username = cfg.get("SMTP_USERNAME")
+    password = cfg.get("SMTP_PASSWORD")
+    if not username or not password:
+        current_app.logger.error("SMTP credentials missing; cannot send '%s'.", subject)
+        return False
 
     message = EmailMessage()
     message["Subject"] = subject
@@ -35,12 +41,20 @@ def send_email(to_email: str, subject: str, html_body: str, text_body: str) -> b
             if cfg.get("SMTP_USE_TLS") and not cfg.get("SMTP_USE_SSL"):
                 server.starttls()
                 server.ehlo()
-            if cfg.get("SMTP_USERNAME"):
-                server.login(cfg["SMTP_USERNAME"], cfg["SMTP_PASSWORD"])
+            if username:
+                server.login(username, password)
+            current_app.logger.info("Sending email to %s (subject: %s)", to_email, subject)
             server.send_message(message)
+        current_app.logger.info("Email sent successfully to %s", to_email)
         return True
+    except smtplib.SMTPAuthenticationError as exc:
+        current_app.logger.error("SMTP authentication failed: check SMTP_USERNAME and SMTP_PASSWORD")
+        return False
+    except smtplib.SMTPException as exc:
+        current_app.logger.error("SMTP error while sending to %s: %s", to_email, type(exc).__name__)
+        return False
     except Exception as exc:  # noqa: BLE001 - never leak credentials
-        current_app.logger.error("Email delivery failed: %s", type(exc).__name__)
+        current_app.logger.error("Email delivery failed to %s: %s", to_email, type(exc).__name__)
         return False
 
 
